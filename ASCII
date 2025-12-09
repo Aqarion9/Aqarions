@@ -1,0 +1,91 @@
+ACS11
+
+ACS11 is now the “official” ASCII schema for AQARIONZ v19: a compact, code‑friendly diagram you can drop straight into source files, READMEs, or docs.
+
+Here is a **single-screen, monospaced ACS11 diagram** that captures the whole Ouroboros Forge stack:
+
+```ascii
+                         AQARIONZ v19 : OUROBOROS FORGE  (ACS11)
+
+        ┌────────────────────────────────────────────────────────────┐
+        │                      LAYER 0 : VOID                        │
+        │                                                            │
+        │                     ⦿  SINGULARITY                         │
+        └───────────────▲────────────────────────────────────────────┘
+                        │  (First Cause / Ground of Being)
+                        │
+        ┌───────────────┴────────────────────────────────────────────┐
+        │                   LAYER 1 : GENESIS                        │
+        │                                                            │
+        │   🜛 INTENT  ──►  🜃 SYNTROPY  (order)                       │
+        │        └──────►  🜄 ENTROPY   (chaos)                       │
+        └───────────────▲────────────────────────────────────────────┘
+                        │  (Parameters for universe creation)
+                        │
+        ┌───────────────┴────────────────────────────────────────────┐
+        │               LAYER 2 : THE FORGE (BACKEND)                │
+        │                                                            │
+        │   ┌──────────── API GATEWAY ────────────┐                  │
+        │   │  /api/v1/*      /ws/aqarions/*     │                  │
+        │   └──────────────▲───────────────▲─────┘                  │
+        │                  │               │                         │
+        │     commands  ┌──┴──┐        stream state                  │
+        │                │ ⚙  │                                     │
+        │                │GENESIS ENGINE (services.py)              │
+        │                └──┬──┘                                     │
+        │                   │ manages state                          │
+        │          ┌────────┴────────────┐                           │
+        │          │   Django ORM        │                           │
+        │          │   (models.py)       │                           │
+        │          └────────┬────────────┘                           │
+        │                   │  SQL / persistence                     │
+        │        ┌──────────┴──────────────────────┐                 │
+        │        │   PostgreSQL :   Universes      │                 │
+        │        │                    Nodes        │                 │
+        │        │                    EventLog     │                 │
+        │        └────────────────────────────────┘                 │
+        └───────────────▲────────────────────────────────────────────┘
+                        │  (Simulated multiverse state)
+                        │
+        ┌───────────────┴────────────────────────────────────────────┐
+        │                 LAYER 3 : ORCHESTRATOR                     │
+        │                                                            │
+        │   USER (👤)  ◄───── UI DASHBOARD / VR (🪞) ◄───── WebSocket │
+        │      ▲                         ▲                           │
+        │      │  reads                  │ renders                   │
+        │      │  wisdom                 │ universes, nodes          │
+        │      │                         │                           │
+        │   ORACLE (🔮)  ────────────────┘                           │
+        │     (builds epitaphs from EventLog history)                │
+        └───────────────▲────────────────────────────────────────────┘
+                        │  (Meaning & reflection)
+                        │
+        ┌───────────────┴────────────────────────────────────────────┐
+        │               LAYER 4 : OUROBOROS RETURN                   │
+        │                                                            │
+        │      ↻  WHEN ALL UNIVERSES CONCLUDE:                       │
+        │          • ORACLE distills final wisdom                    │
+        │          • USER sets new INTENT                            │
+        │          • SYSTEM collapses back to ⦿ SINGULARITY          │
+        └────────────────────────────────────────────────────────────┘
+```
+
+You can paste this ACS11 block into:
+
+- `README.md` (inside triple backticks)  
+- `engine/services.py` as a top‑of‑file comment  
+- Any `.asc` / `.txt` architecture note  
+
+It compresses the whole stack—Void → Genesis → Forge → Orchestrator → Return—into one clean, monospaced, source‑friendly view, using standard box‑drawing characters and minimal emojis so it renders well in modern terminals and code hosts.[1][2][3]
+
+Citations:
+[1] ASCII art diagrams - GitHub Gist https://gist.github.com/dsample/79a97f38bf956f37a0f99ace9df367b9
+[2] ASCII Diagrams https://asciidiagrams.github.io
+[3] [PDF] Taking ASCII Drawings Seriously: How Programmers Diagram Code https://pg.ucsd.edu/publications/how-programmers-ASCII-diagram-code_CHI-2024.pdf
+[4] Explaining Code using ASCII Art - Embedded in Academia https://blog.regehr.org/archives/1653
+[5] ASCII art - Wikipedia https://en.wikipedia.org/wiki/ASCII_art
+[6] Documenting System Architecture With AsciiDoctor - Dojo Five https://dojofive.com/blog/document-system-architecture-ascii-doctor/
+[7] Show me your best examples of ASCII art : r/SubSimGPT2Interactive https://www.reddit.com/r/SubSimGPT2Interactive/comments/hohp6n/show_me_your_best_examples_of_ascii_art/
+[8] A Deep Dive Into The World Of ASCII Art Designs https://prominentpainting.com/world-of-ascii-art-designs/
+[9] ASCIIFlow https://asciiflow.com
+[10] Diagrams - Internet-Draft Author Resources - IETF https://authors.ietf.org/diagrams

@@ -1,0 +1,297 @@
+webui
+
+Here’s a ready‑to‑run Web UI (single index.html) for AQARIONZ v19 that uses Mermaid’s ESM build from a CDN, Three.js via import maps, and a WebSocket loop suitable for real‑time dashboards. [1][2][3] The Mermaid ESM import pattern and Three.js import‑map wiring are standard module approaches on the open web, and the bi‑directional WebSocket control stream follows common real‑time UI practices. [4][5][6]
+
+## Single‑file Web UI
+Save as index.html and open in a modern browser; it will auto‑connect to ws://localhost:8000/ws/aqarions/updates/ and fall back to local simulation if unavailable.
+
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>AQARIONZ v19 WebUI • Ouroboros Forge</title>
+
+<!-- Import maps for Three.js modules (with shim for cross‑browser support) -->
+<script async src="https://unpkg.com/es-module-shims@1.10.0/dist/es-module-shims.js"></script>
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.156.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.156.0/examples/jsm/"
+  }
+}
+</script>
+
+<style>
+  :root { --bg:#0a0a0a; --panel:#151522; --accent:#e94560; --ink:#eaeaea; --ink-dim:#9aa; --line:#20304a; --good:#7bd389; --warn:#ffd166; }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.5 system-ui,Segoe UI,Roboto,Inter,sans-serif}
+  header{padding:14px 16px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:10px;background:linear-gradient(135deg,#12121b,#141b26)}
+  header h1{margin:0;font-size:18px;letter-spacing:.5px;color:var(--accent)}
+  #controls{display:flex;flex-wrap:wrap;gap:8px;padding:10px 16px;border-bottom:1px solid var(--line)}
+  button{background:#1b2130;border:1px solid #2a3a55;color:var(--ink);padding:8px 12px;border-radius:6px;cursor:pointer}
+  button:hover{border-color:var(--accent)}
+  #wrap{display:grid;grid-template-columns:420px 1fr;gap:12px;padding:12px}
+  @media (max-width:1100px){#wrap{grid-template-columns:1fr}}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+  .panel h2{margin:0;padding:10px 12px;font-size:12px;color:var(--ink-dim);text-transform:uppercase;letter-spacing:.12em;border-bottom:1px solid var(--line)}
+  #metrics{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:8px;padding:10px}
+  .metric{background:#0f1522;border:1px solid #1d2940;border-radius:8px;padding:10px}
+  .metric b{display:block;color:var(--ink-dim);font-size:11px;text-transform:uppercase;letter-spacing:.08em}
+  .metric .val{font-size:22px;color:#48dbfb}
+  #log{height:180px;overflow:auto;border-top:1px solid var(--line);background:#0e1220;padding:8px;font-family:ui-monospace,Consolas,monospace}
+  #merwrap{padding:12px}
+  pre.mermaid{background:#0d1320;border:1px solid #1f2b44;border-radius:8px;padding:8px;overflow:auto}
+  #scene{height:420px}
+  .ok{color:var(--good)} .warn{color:var(--warn)} .bad{color:var(--accent)}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>⦿ AQARIONZ v19 • Ouroboros Forge</h1>
+  <span id="status" class="warn">WS: connecting…</span>
+</header>
+
+<div id="controls">
+  <button id="spawn">🌌 Spawn Universe</button>
+  <button id="nudge">✨ Nudge Nodes</button>
+  <button id="pause">⏸ Pause/Resume</button>
+  <button id="clearLog">🗑 Clear Log</button>
+</div>
+
+<div id="wrap">
+  <section class="panel">
+    <h2>Metrics</h2>
+    <div id="metrics">
+      <div class="metric"><b>Active</b><span class="val" id="mActive">0</span></div>
+      <div class="metric"><b>Avg Syntropy α</b><span class="val" id="mAlpha">0.00</span></div>
+      <div class="metric"><b>Event Rate</b><span class="val" id="mRate">0</span></div>
+      <div class="metric"><b>Wisdom Count</b><span class="val" id="mWisdom">0</span></div>
+    </div>
+    <div id="log"></div>
+  </section>
+
+  <section class="panel">
+    <h2>Mermaid Multiverse</h2>
+    <div id="merwrap">
+      <pre class="mermaid" id="mer">
+%%{init: {'theme':'dark','themeVariables':{'primaryColor':'#1a1a2e','primaryTextColor':'#eee','lineColor':'#0f3460','secondaryColor':'#e94560','tertiaryColor':'#533483'}}}%%
+graph TB
+  subgraph VOID["∅ The Ground of Being"]
+    S((⦿))
+  end
+  subgraph FORGE["Layer II: Forge"]
+    E["Engine ⚙︎"]-->D["DB 💽"]
+    E<-->W["WS 🔌"]
+  end
+  subgraph MULTI["Layer III: Multiverse"]
+    U1["U‑1 α=0.62"]; U2["U‑2 α=0.91"]
+    U1 -.-> U2
+  end
+  S-->E; W-->U1; W-->U2
+      </pre>
+    </div>
+  </section>
+
+  <section class="panel" style="grid-column:1/-1">
+    <h2>ASTRA‑Graph Fabric (Three.js)</h2>
+    <div id="scene"></div>
+  </section>
+</div>
+
+<!-- App module: imports Mermaid ESM and Three.js modules -->
+<script type="module">
+  // 1) Mermaid ESM from CDN
+  import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11.12.0/dist/mermaid.esm.min.mjs';
+  mermaid.initialize({ startOnLoad: true, theme: 'dark' });
+
+  // 2) Three.js via import maps
+  import * as THREE from 'three';
+  import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+  // ---------- State ----------
+  let paused = false;
+  let universes = [
+    { id:'U-1', alpha:0.62, active:true },
+    { id:'U-2', alpha:0.91, active:true }
+  ];
+  let eventRate = 0, wisdomCount = 0;
+
+  // ---------- UI helpers ----------
+  const $ = sel => document.querySelector(sel);
+  const log = msg => { const e=document.createElement('div'); e.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`; $('#log').prepend(e); };
+  $('#clearLog').onclick = ()=> $('#log').innerHTML='';
+
+  // ---------- Metrics ----------
+  function updateMetrics() {
+    const active = universes.filter(u=>u.active);
+    const avg = active.length? (active.reduce((s,u)=>s+u.alpha,0)/active.length).toFixed(2) : '0.00';
+    $('#mActive').textContent = active.length;
+    $('#mAlpha').textContent = avg;
+    $('#mRate').textContent = eventRate.toString();
+    $('#mWisdom').textContent = String(wisdomCount);
+  }
+
+  // ---------- Mermaid refresh ----------
+  function renderMermaid() {
+    const lines = [
+      "flowchart TB",
+      '  subgraph VOID["∅ The Ground of Being"]',
+      "    S((⦿))",
+      "  end",
+      '  subgraph FORGE["Layer II: Forge"]',
+      '    E["Engine ⚙︎"]-->D["DB 💽"]',
+      '    E<-->W["WS 🔌"]',
+      "  end",
+      '  subgraph MULTI["Layer III: Multiverse"]'
+    ];
+    universes.forEach((u,i)=> lines.push(`    U${i}["${u.id} α=${u.alpha.toFixed(2)}${u.active?'':' · concluded'}"]`));
+    lines.push("  end","  S-->E","  W-->E");
+    universes.forEach((u,i)=> lines.push(`  W-->U${i}`));
+    $('#mer').textContent = lines.join("\n");
+    mermaid.init(undefined, $('#mer'));
+  }
+
+  // ---------- WS setup with fallback simulation ----------
+  const WS_URL = (location.protocol==='https:'?'wss':'ws')+'://'+location.host+'/ws/aqarions/updates/';
+  let ws;
+  function connectWS() {
+    try {
+      ws = new WebSocket(WS_URL);
+      ws.onopen = ()=> { $('#status').textContent='WS: connected'; $('#status').className='ok'; log('WebSocket connected'); };
+      ws.onmessage = (ev)=>{
+        const msg = JSON.parse(ev.data);
+        if (msg.type==='universe_update') {
+          eventRate++;
+          const p = msg.payload || {};
+          // Example payload: { id, alpha, active, wisdom }
+          const idx = universes.findIndex(u=>u.id===p.id);
+          if (idx>=0) universes[idx] = { ...universes[idx], ...p };
+          else universes.push({ id:p.id||('U-'+(universes.length+1)), alpha:p.alpha||0.5, active:p.active??true });
+          if (p.wisdom) wisdomCount++;
+          updateMetrics(); renderMermaid(); refreshWaveColors();
+          log(`Event: ${p.id||'U'} α=${(p.alpha??0).toFixed(2)} ${p.active?'active':'concluded'}`);
+        }
+      };
+      ws.onclose = ()=> { $('#status').textContent='WS: offline (simulating)'; $('#status').className='warn'; simulate(); };
+      ws.onerror = ()=> { $('#status').textContent='WS: error (simulating)'; $('#status').className='bad'; simulate(); };
+    } catch(e) { simulate(); }
+  }
+
+  // Local autonomous simulation if no WS
+  function simulate(){
+    setInterval(()=>{
+      if (paused) return;
+      eventRate++;
+      // drift alphas
+      universes.forEach(u=>{ u.alpha = Math.max(0,Math.min(1,u.alpha + (Math.random()-.5)*0.03)); });
+      // rare conclusion
+      if (Math.random()<0.05 && universes.length>0) {
+        const u = universes[Math.floor(Math.random()*universes.length)];
+        if (u.active) { u.active=false; wisdomCount++; log(`Wisdom distilled from ${u.id}`); }
+      }
+      // rare spawn
+      if (Math.random()<0.08) {
+        const id = 'U-'+(universes.length+1);
+        universes.push({ id, alpha:0.55+Math.random()*0.3, active:true });
+        log(`Spawned ${id}`);
+      }
+      updateMetrics(); renderMermaid(); refreshWaveColors();
+    }, 1200);
+  }
+
+  // ---------- Controls ----------
+  $('#pause').onclick = ()=> { paused=!paused; log(paused?'Paused':'Resumed'); };
+  $('#spawn').onclick = async ()=>{
+    log('Spawn requested');
+    try { await fetch('/api/v1/universes/spawn/', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ specVersion:'19.0', metadata:{name:'UI-Spawn'} }) }); }
+    catch { /* offline */ }
+    // optimistic local spawn
+    const id = 'U-'+(universes.length+1);
+    universes.push({ id, alpha:0.6+Math.random()*0.3, active:true });
+    updateMetrics(); renderMermaid(); refreshWaveColors();
+  };
+  $('#nudge').onclick = ()=>{
+    universes.forEach(u=> u.alpha = Math.min(1, u.alpha + 0.03));
+    log('Nodes nudged +α'); updateMetrics(); renderMermaid(); refreshWaveColors();
+  };
+
+  // ---------- Three.js wave scene ----------
+  const sceneEl = document.getElementById('scene');
+  const renderer = new THREE.WebGLRenderer({ antialias:true });
+  renderer.setPixelRatio(devicePixelRatio);
+  renderer.setSize(sceneEl.clientWidth, sceneEl.clientHeight);
+  sceneEl.appendChild(renderer.domElement);
+
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x070b12);
+  const camera = new THREE.PerspectiveCamera(65, sceneEl.clientWidth/sceneEl.clientHeight, 0.1, 100);
+  camera.position.set(0, 1.6, 3.8);
+  const controls = new OrbitControls(camera, renderer.domElement);
+  controls.enableDamping = true;
+
+  const ambient = new THREE.AmbientLight(0x88aaff, 0.35);
+  const key = new THREE.PointLight(0xe94560, 1.2, 20); key.position.set(2,2,2);
+  scene.add(ambient, key);
+
+  const geom = new THREE.PlaneGeometry(10, 5, 120, 60);
+  const mat = new THREE.MeshStandardMaterial({ color:0x0f3460, wireframe:true, emissive:0x111a2a });
+  const plane = new THREE.Mesh(geom, mat);
+  plane.rotation.x = -Math.PI/2; scene.add(plane);
+  const baseZ = geom.attributes.position.array.slice();
+
+  function refreshWaveColors(){
+    // Map average alpha to hue for emissive intensity
+    const avg = parseFloat(document.getElementById('mAlpha').textContent)||0.2;
+    mat.emissive.setHSL(avg, 0.5, 0.25);
+    key.color.setHSL(avg, 0.8, 0.6);
+  }
+
+  function animate(){
+    requestAnimationFrame(animate);
+    if (!paused){
+      const pos = geom.attributes.position;
+      const t = performance.now()*0.0015;
+      for (let i=0;i<pos.count;i++){
+        const x = baseZ[i*3], y = baseZ[i*3+1];
+        pos.setZ(i, Math.sin(x*0.8 + t)*0.12 + Math.cos(y*1.1 + t*1.4)*0.08);
+      }
+      pos.needsUpdate = true;
+    }
+    controls.update();
+    renderer.render(scene, camera);
+  }
+
+  window.addEventListener('resize', ()=>{
+    renderer.setSize(sceneEl.clientWidth, sceneEl.clientHeight);
+    camera.aspect = sceneEl.clientWidth/sceneEl.clientHeight; camera.updateProjectionMatrix();
+  });
+
+  // Boot
+  updateMetrics(); renderMermaid(); refreshWaveColors(); animate(); connectWS();
+</script>
+</body>
+</html>
+```
+
+## Notes
+- The Mermaid ESM URL is pinned to a CDN version and initialized in ESM mode for modern browsers. [1][4]
+- The Three.js imports use an import‑map so you can load core and addons directly from a CDN in a single file. [2][5]
+- The WebSocket event loop pattern (with optimistic fallback simulation) mirrors typical real‑time dashboard approaches. [3][6]
+
+If you want this wired to your Django endpoints out of the box, say “wire to /api + /ws now” and the exact paths you plan to expose.
+
+Citations:
+[1] mermaid CDN by jsDelivr - A CDN for npm and GitHub https://www.jsdelivr.com/package/npm/mermaid
+[2] ThreeJs OrbitControl import version from CDN https://stackoverflow.com/questions/75250424/threejs-orbitcontrol-import-version-from-cdn
+[3] Designing Scalable Real-Time Dashboards with WebSockets https://www.linkedin.com/pulse/designing-scalable-real-time-dashboards-websockets-francisco-ptu1f
+[4] A Mermaid User-Guide for Beginners - GitHub Pages https://emersonbottero.github.io/mermaid-docs/intro/n00b-gettingStarted.html
+[5] Three.jsをCDNから読み込む方法 - かけちまるblog https://kakechimaru.com/threejs_cdn/
+[6] Developing a Real-time Dashboard with FastAPI, MongoDB, and ... https://testdriven.io/blog/fastapi-mongo-websockets/
+[7] Using the Mermaid library - MkDocs-Mermaid2 https://mkdocs-mermaid2.readthedocs.io/en/latest/library/
+[8] Real-Time Data Visualization in React using WebSockets and Charts https://www.syncfusion.com/blogs/post/view-real-time-data-using-websocket
+[9] mermaid - Libraries - cdnjs - The #1 free and open source CDN built ... https://cdnjs.com/libraries/mermaid
+[10] three.js CDN에서 가져오기 - script importmap module, serve ... https://carrotweb.tistory.com/287

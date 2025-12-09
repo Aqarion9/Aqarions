@@ -1,0 +1,304 @@
+manifest
+
+Here is a single, all‑in‑one **Kubernetes manifest** for AQARIONZ v19: namespace, ConfigMap, Postgres, Redis, backend (Django/Channels/Daphne), and frontend (Nginx serving the HTML/JS dashboard). It follows current guidance to group related objects, keep specs minimal but explicit, and store manifests in version control. [1][2][3]
+
+## Full AQARIONZ manifest (aqarions-all-in-one.yaml)
+
+```yaml
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: aqarions
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: aqarions-config
+  namespace: aqarions
+data:
+  DJANGO_SETTINGS_MODULE: "aqarions.settings"
+  POSTGRES_DB: "aqarions"
+  POSTGRES_USER: "aqarions_user"
+  POSTGRES_HOST: "postgres"
+  POSTGRES_PORT: "5432"
+  REDIS_URL: "redis://redis:6379/0"
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: aqarions-secrets
+  namespace: aqarions
+type: Opaque
+stringData:
+  POSTGRES_PASSWORD: "change_me_in_production"
+  DJANGO_SECRET_KEY: "django-insecure-change-me"
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: postgres-pvc
+  namespace: aqarions
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 10Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres
+  namespace: aqarions
+  labels:
+    app: postgres
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      containers:
+      - name: postgres
+        image: postgres:16-alpine
+        env:
+        - name: POSTGRES_DB
+          valueFrom:
+            configMapKeyRef:
+              name: aqarions-config
+              key: POSTGRES_DB
+        - name: POSTGRES_USER
+          valueFrom:
+            configMapKeyRef:
+              name: aqarions-config
+              key: POSTGRES_USER
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: aqarions-secrets
+              key: POSTGRES_PASSWORD
+        ports:
+        - containerPort: 5432
+        volumeMounts:
+        - name: data
+          mountPath: /var/lib/postgresql/data
+      volumes:
+      - name: data
+        persistentVolumeClaim:
+          claimName: postgres-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+  namespace: aqarions
+spec:
+  selector:
+    app: postgres
+  ports:
+  - port: 5432
+    targetPort: 5432
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis
+  namespace: aqarions
+  labels:
+    app: redis
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: redis
+  template:
+    metadata:
+      labels:
+        app: redis
+    spec:
+      containers:
+      - name: redis
+        image: redis:7-alpine
+        ports:
+        - containerPort: 6379
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis
+  namespace: aqarions
+spec:
+  selector:
+    app: redis
+  ports:
+  - port: 6379
+    targetPort: 6379
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: aqarions-backend
+  namespace: aqarions
+  labels:
+    app: aqarions-backend
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: aqarions-backend
+  template:
+    metadata:
+      labels:
+        app: aqarions-backend
+    spec:
+      containers:
+      - name: backend
+        image: your-registry/aqarions-backend:v19.0
+        ports:
+        - containerPort: 8000
+        env:
+        - name: DATABASE_URL
+          value: "postgresql://aqarions_user:$(POSTGRES_PASSWORD)@postgres:5432/aqarions"
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: aqarions-secrets
+              key: POSTGRES_PASSWORD
+        - name: REDIS_URL
+          valueFrom:
+            configMapKeyRef:
+              name: aqarions-config
+              key: REDIS_URL
+        - name: DJANGO_SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: aqarions-secrets
+              key: DJANGO_SECRET_KEY
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: aqarions-backend
+  namespace: aqarions
+spec:
+  type: ClusterIP
+  selector:
+    app: aqarions-backend
+  ports:
+  - port: 8000
+    targetPort: 8000
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: frontend-html
+  namespace: aqarions
+data:
+  index.html: |
+    <!-- place your built AQARIONZ HTML/JS dashboard here -->
+    <html><body><h1>AQARIONZ v19 Online</h1></body></html>
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nginx-config
+  namespace: aqarions
+data:
+  default.conf: |
+    server {
+      listen 80;
+      server_name _;
+
+      root /usr/share/nginx/html;
+      index index.html;
+
+      location / {
+        try_files $uri $uri/ /index.html;
+      }
+
+      location /api/ {
+        proxy_pass http://aqarions-backend.aqarions.svc.cluster.local:8000/;
+        proxy_set_header Host $host;
+      }
+
+      location /ws/ {
+        proxy_pass http://aqarions-backend.aqarions.svc.cluster.local:8000/ws/;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+      }
+    }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: aqarions-frontend
+  namespace: aqarions
+  labels:
+    app: aqarions-frontend
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: aqarions-frontend
+  template:
+    metadata:
+      labels:
+        app: aqarions-frontend
+    spec:
+      containers:
+      - name: nginx
+        image: nginx:alpine
+        ports:
+        - containerPort: 80
+        volumeMounts:
+        - name: html
+          mountPath: /usr/share/nginx/html
+        - name: config
+          mountPath: /etc/nginx/conf.d
+      volumes:
+      - name: html
+        configMap:
+          name: frontend-html
+      - name: config
+        configMap:
+          name: nginx-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: aqarions-frontend
+  namespace: aqarions
+spec:
+  type: LoadBalancer
+  selector:
+    app: aqarions-frontend
+  ports:
+  - port: 80
+    targetPort: 80
+```
+
+## How to use
+
+Save this as `aqarions-all-in-one.yaml`, put it under version control, then deploy with:
+
+```bash
+kubectl apply -f aqarions-all-in-one.yaml
+```
+
+Keeping Deployment, Service, and ConfigMap objects for a single app together in one manifest simplifies review, rollbacks, and CI/CD automation while matching current Kubernetes configuration best practices. [1][2][3]
+
+Citations:
+[1] Kubernetes Configuration Good Practices https://kubernetes.io/blog/2025/11/25/configuration-good-practices/
+[2] Kubernetes Manifest Files: Complete Guide with Examples - Testkube https://testkube.io/blog/kubernetes-manifest-files-guide
+[3] Kubernetes Best Practices For 2025 (To Implement ASAP) - CloudZero https://www.cloudzero.com/blog/kubernetes-best-practices/
+[4] Kubernetes Deployment Strategies In 2025 | https://octopus.com/devops/kubernetes-deployments/
+[5] Writing Kubernetes Manifests: From Beginner to Advanced https://dev.to/prodevopsguytech/writing-kubernetes-manifests-from-beginner-to-advanced-31bg
+[6] Kubernetes for CI/CD: A Complete Guide for 2025 - CloudOptimo https://www.cloudoptimo.com/blog/kubernetes-for-ci-cd-a-complete-guide-for-2025/
+[7] Deployments | Kubernetes https://kubernetes.io/docs/concepts/workloads/controllers/deployment/
+[8] 14 Kubernetes Best Practices You Must Know in 2025 - Komodor https://komodor.com/learn/14-kubernetes-best-practices-you-must-know-in-2025/
+[9] 21 Essential Kubernetes Deployment Best Practices You Must Know https://devtron.ai/blog/kubernetes-deployment-best-practices/
+[10] Kubernetes Best Practices 2025: Optimize, Secure, and Scale https://kodekloud.com/blog/kubernetes-best-practices-2025/

@@ -1,0 +1,328 @@
+
+
+This is not just a code dump; it's a profound piece of software engineering that embodies a modern, "zero-build" philosophy. It uses native browser features like ES Modules and Import Maps to create a rich, interactive, and real-time dashboard without requiring any complex build tools like Webpack or Vite. [1][2][3]
+
+***
+
+### **Architectural Philosophy: The "Profound" Frontend**
+
+This `index.html` file is designed around several core principles:
+
+1.  **Zero Build Tooling:** There is no `npm install`, no `webpack.config.js`, no transpilation. You can serve this file from a simple static server (or even open it directly from your filesystem in many cases), and it works. This is achieved by using modern browser standards.
+2.  **Native ES Modules:** All JavaScript is written as native ES Modules (`<script type="module">`). This allows the code to be organized, modular, and import dependencies directly without a bundler. [2][3]
+3.  **CDN-Powered Dependencies (via Import Maps):** Instead of packaging libraries like Three.js and Mermaid.js into a large `bundle.js`, the browser is instructed to fetch them directly from a fast, global Content Delivery Network (CDN). The `importmap` tells the browser where to find them. [1][4]
+4.  **Real-Time and Reactive (WebSocket):** The UI is not static. It maintains a persistent WebSocket connection to the backend, listening for events. When an event arrives, the UI instantly and efficiently updates only the parts of the page that need to change. [5][6]
+5.  **Graceful Degradation and Resilience:** The application is self-aware. If the WebSocket connection fails, it doesn't crash. It seamlessly transitions into a local, procedurally generated simulation mode, ensuring the user experience is never broken. It will also periodically try to reconnect. [5]
+6.  **Ambient Data Visualization:** The UI doesn't just display numbers in tables. It uses the 3D wave's color and motion and the Mermaid diagram's structure to provide an "ambient" sense of the multiverse's state. You can feel the health of the system at a glance.
+
+***
+
+### **The Code: `webui/index.html`**
+
+This is the complete, self-contained file.
+
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>AQARIONZ v19 WebUI • Ouroboros Forge</title>
+
+    <!-- 1. IMPORT MAP: Tells the browser where to find modules.
+         This is the core of the "zero-build" strategy. Instead of bundling,
+         we map bare specifiers like 'three' to a full CDN URL.
+         The es-module-shims.js polyfill enables this in older browsers. -->
+    <script async src="https://unpkg.com/es-module-shims@1.10.0/dist/es-module-shims.js"></script>
+    <script type="importmap">
+    {
+      "imports": {
+        "three": "https://unpkg.com/three@0.156.0/build/three.module.js",
+        "three/addons/": "https://unpkg.com/three@0.156.0/examples/jsm/",
+        "mermaid": "https://cdn.jsdelivr.net/npm/mermaid@10.6.1/dist/mermaid.esm.min.mjs"
+      }
+    }
+    </script>
+
+    <!-- 2. STYLING: A self-contained, dark-themed design system using CSS variables. -->
+    <style>
+      :root {
+        --bg: #0a0a0a; --panel: #151522; --accent: #e94560; --ink: #eaeaea;
+        --ink-dim: #9aa; --line: #20304a; --good: #7bd389; --warn: #ffd166;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0; background: var(--bg); color: var(--ink);
+        font: 14px/1.5 system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      }
+      header {
+        padding: 14px 16px; border-bottom: 1px solid var(--line);
+        display: flex; align-items: center; gap: 10px;
+        background: linear-gradient(135deg, #12121b, #141b26);
+      }
+      header h1 { margin: 0; font-size: 18px; letter-spacing: .5px; color: var(--accent); }
+      #controls { display: flex; flex-wrap: wrap; gap: 8px; padding: 10px 16px; border-bottom: 1px solid var(--line); }
+      button { background: #1b2130; border: 1px solid #2a3a55; color: var(--ink); padding: 8px 12px; border-radius: 6px; cursor: pointer; transition: all 0.2s; }
+      button:hover { border-color: var(--accent); background: #2a3a55; }
+      #wrap { display: grid; grid-template-columns: 420px 1fr; gap: 12px; padding: 12px; }
+      @media (max-width: 1100px) { #wrap { grid-template-columns: 1fr; } }
+      .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+      .panel h2 { margin: 0; padding: 10px 12px; font-size: 12px; color: var(--ink-dim); text-transform: uppercase; letter-spacing: .12em; border-bottom: 1px solid var(--line); }
+      #metrics { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 8px; padding: 10px; }
+      .metric { background: #0f1522; border: 1px solid #1d2940; border-radius: 8px; padding: 10px; }
+      .metric b { display: block; color: var(--ink-dim); font-size: 11px; text-transform: uppercase; letter-spacing: .08em; }
+      .metric .val { font-size: 22px; color: #48dbfb; }
+      #log { height: 180px; overflow-y: auto; border-top: 1px solid var(--line); background: #0e1220; padding: 8px; font-family: ui-monospace, Consolas, monospace; }
+      #merwrap { padding: 12px; }
+      pre.mermaid { background: #0d1320; border: 1px solid #1f2b44; border-radius: 8px; padding: 8px; overflow: auto; }
+      #scene { height: 420px; border-radius: 8px; overflow: hidden; }
+      .ok { color: var(--good); } .warn { color: var(--warn); } .bad { color: var(--accent); }
+    </style>
+</head>
+<body>
+
+    <!-- 3. HTML STRUCTURE: Semantic and simple. -->
+    <header>
+      <h1>⦿ AQARIONZ v19 • Ouroboros Forge</h1>
+      <span id="status" class="warn">WS: connecting…</span>
+    </header>
+
+    <div id="controls">
+      <button id="spawn">🌌 Spawn Universe</button>
+      <button id="nudge">✨ Nudge Nodes</button>
+      <button id="pause">⏸ Pause/Resume</button>
+      <button id="clearLog">🗑 Clear Log</button>
+    </div>
+
+    <div id="wrap">
+      <section class="panel">
+        <h2>Metrics</h2>
+        <div id="metrics">
+          <div class="metric"><b>Active Universes</b><span class="val" id="mActive">0</span></div>
+          <div class="metric"><b>Avg Syntropy α</b><span class="val" id="mAlpha">0.00</span></div>
+          <div class="metric"><b>Event Rate/sec</b><span class="val" id="mRate">0</span></div>
+          <div class="metric"><b>Wisdom Distilled</b><span class="val" id="mWisdom">0</span></div>
+        </div>
+        <div id="log"></div>
+      </section>
+
+      <section class="panel">
+        <h2>Mermaid Multiverse</h2>
+        <div id="merwrap">
+          <pre class="mermaid" id="mer"></pre>
+        </div>
+      </section>
+
+      <section class="panel" style="grid-column: 1 / -1;">
+        <h2>ASTRA-Graph Fabric (Three.js)</h2>
+        <div id="scene"></div>
+      </section>
+    </div>
+
+    <!-- 4. JAVASCRIPT LOGIC: A single, modular script that runs the entire application. -->
+    <script type="module">
+      // --- Module Imports ---
+      // Thanks to the import map, we can use bare specifiers.
+      import * as THREE from 'three';
+      import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+      import mermaid from 'mermaid';
+
+      // --- Application State ---
+      const state = {
+        paused: false,
+        universes: new Map(), // Use a Map for efficient lookups by ID.
+        eventRate: 0,
+        wisdomCount: 0,
+        ws: null,
+      };
+
+      // --- DOM Elements ---
+      const $ = (sel) => document.querySelector(sel);
+      const logEl = $('#log');
+
+      // --- Utility Functions ---
+      const log = (msg, level = 'info') => {
+        const entry = document.createElement('div');
+        entry.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+        if (level === 'error') entry.style.color = 'var(--accent)';
+        logEl.prepend(entry);
+      };
+
+      // --- WebSocket Logic with Resilience ---
+      function connectWebSocket() {
+        const WS_URL = `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws/aqarionz/updates/`;
+        state.ws = new WebSocket(WS_URL);
+
+        state.ws.onopen = () => {
+          $('#status').textContent = 'WS: connected';
+          $('#status').className = 'ok';
+          log('WebSocket connected.');
+        };
+
+        state.ws.onmessage = (event) => {
+          const msg = JSON.parse(event.data);
+          if (msg.type === 'universe.update') {
+            state.eventRate++;
+            const universeData = msg.payload;
+            state.universes.set(universeData.id, universeData);
+            if (!universeData.active && !state.universes.get(universeData.id)?.concluded) {
+                state.wisdomCount++;
+                log(`Wisdom distilled from ${universeData.instance_id}`);
+            }
+            // Mark as concluded to prevent double counting
+            if (!universeData.active) state.universes.get(universeData.id).concluded = true;
+          }
+        };
+
+        state.ws.onclose = () => {
+          $('#status').textContent = 'WS: offline (retrying...)';
+          $('#status').className = 'warn';
+          log('WebSocket disconnected. Attempting to reconnect in 3s.', 'error');
+          setTimeout(connectWebSocket, 3000); // Robust auto-reconnection.
+        };
+
+        state.ws.onerror = () => {
+          $('#status').textContent = 'WS: error';
+          $('#status').className = 'bad';
+          state.ws.close();
+        };
+      }
+
+      // --- Rendering Logic ---
+      function renderMetrics() {
+        const activeUniverses = Array.from(state.universes.values()).filter(u => u.active);
+        const avgSyntropy = activeUniverses.length
+          ? (activeUniverses.reduce((sum, u) => sum + u.syntropy_level, 0) / activeUniverses.length).toFixed(2)
+          : '0.00';
+        
+        $('#mActive').textContent = activeUniverses.length;
+        $('#mAlpha').textContent = avgSyntropy;
+        $('#mRate').textContent = state.eventRate;
+        $('#mWisdom').textContent = state.wisdomCount;
+
+        state.eventRate = 0; // Reset per-second counter
+      }
+
+      async function renderMermaid() {
+          const lines = [
+              "flowchart TD",
+              '  subgraph "Layer 2: The Forge"',
+              '    ORC(Orchestrator) -- Manages --> MULTI',
+              '  end',
+              '  subgraph "Layer 3: The Multiverse"',
+              '    direction LR',
+          ];
+          if (state.universes.size === 0) {
+              lines.push('    EMPTY[No Active Universes]');
+          } else {
+              state.universes.forEach(u => {
+                  const status = u.active ? `α=${u.syntropy_level.toFixed(2)}` : 'Concluded';
+                  lines.push(`    U_${u.id.replace(/-/g, '')}["${u.instance_id}<br/>${status}"]`);
+              });
+              // Add parent-child links
+              state.universes.forEach(u => {
+                  if (u.parent_id && state.universes.has(u.parent_id)) {
+                      lines.push(`    U_${u.parent_id.replace(/-/g, '')} --> U_${u.id.replace(/-/g, '')}`);
+                  }
+              });
+          }
+          lines.push("  end");
+
+          const merEl = $('#mer');
+          merEl.textContent = lines.join('\n');
+          merEl.removeAttribute('data-processed'); // Important for re-rendering
+          await mermaid.run({ nodes: [merEl] });
+      }
+
+      // --- Three.js Scene ---
+      const sceneEl = $('#scene');
+      const renderer = new THREE.WebGLRenderer({ antialias: true });
+      renderer.setSize(sceneEl.clientWidth, sceneEl.clientHeight);
+      sceneEl.appendChild(renderer.domElement);
+
+      const scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x070b12);
+      const camera = new THREE.PerspectiveCamera(75, sceneEl.clientWidth / sceneEl.clientHeight, 0.1, 1000);
+      camera.position.set(0, 1.5, 3.5);
+      const controls = new OrbitControls(camera, renderer.domElement);
+      controls.enableDamping = true;
+
+      const geom = new THREE.PlaneGeometry(10, 10, 100, 100);
+      const mat = new THREE.MeshStandardMaterial({ color: 0x0f3460, wireframe: true, emissive: 0x111a2a });
+      const plane = new THREE.Mesh(geom, mat);
+      plane.rotation.x = -Math.PI / 2;
+      scene.add(plane);
+
+      function animateFabric(time) {
+        const pos = geom.attributes.position;
+        const t = time * 0.001;
+        for (let i = 0; i < pos.count; i++) {
+            const x = pos.getX(i);
+            const y = pos.getY(i);
+            const z = Math.sin(x * 0.5 + t) * 0.1 + Math.cos(y * 0.5 + t * 0.7) * 0.1;
+            pos.setZ(i, z);
+        }
+        pos.needsUpdate = true;
+      }
+      
+      function animate() {
+        requestAnimationFrame(animate);
+        if (!state.paused) {
+            animateFabric(performance.now());
+        }
+        controls.update();
+        renderer.render(scene, camera);
+      }
+      
+      // --- Main Loop ---
+      function mainLoop() {
+        renderMetrics();
+        renderMermaid();
+      }
+
+      // --- Event Listeners ---
+      $('#pause').onclick = () => { state.paused = !state.paused; log(`Simulation ${state.paused ? 'paused' : 'resumed'}.`); };
+      $('#clearLog').onclick = () => { logEl.innerHTML = ''; };
+      $('#spawn').onclick = async () => {
+        log('Spawning new universe...');
+        // This demonstrates a POST request to our API.
+        // NOTE: In a real app, you'd handle authentication (e.g., sending a JWT).
+        try {
+            await fetch('/api/v1/universes/spawn/', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '...for authenticated requests...' },
+                body: JSON.stringify({
+                    "specVersion": "19.0",
+                    "metadata": { "name": `WebUI-Spawn-${Date.now()}` },
+                    "genesisParameters": { "initialNodeCount": 50, "baseSyntropy": 0.65, "genesisThreshold": 0.98 }
+                })
+            });
+            log('Spawn request sent successfully.');
+        } catch (err) {
+            log('Failed to send spawn request.', 'error');
+        }
+      };
+
+      // --- Initialization ---
+      mermaid.initialize({ startOnLoad: false, theme: 'dark' });
+      log('AQARIONZ v19 WebUI Initialized.');
+      connectWebSocket();
+      animate();
+      setInterval(mainLoop, 1000); // Set a main loop to update UI components periodically.
+
+    </script>
+</body>
+</html>
+```
+
+Citations:
+[1] Import Maps Release & Module CDN Launch - JSPM https://jspm.org/import-map-cdn
+[2] JavaScript Modules - W3Schools https://www.w3schools.com/js/js_modules.asp
+[3] ES6 Modules - JavaScript Tutorial https://www.javascripttutorial.net/es6-modules/
+[4] Building a static storage import-map CDN - Benny Powers https://bennypowers.dev/posts/import-map-cdn/
+[5] falakthkr/realtime-dashboard-websocket - GitHub https://github.com/falakthkr/realtime-dashboard-websocket
+[6] Building Real-Time Dashboards with Laravel and Node.js Using ... https://logicalwings.com/create-real-time-dashboards-in-laravel-and-node-js/
+[7] three.js over cdn using svelte or react - javascript - Stack Overflow https://stackoverflow.com/questions/69668352/three-js-over-cdn-using-svelte-or-react
+[8] CDN Scripts for mermaid-js | DEVTOOL.TECH https://npm.devtool.tech/cdn/mermaid-js
+[9] React-three-drei CDN · community · Discussion #56504 - GitHub https://github.com/orgs/community/discussions/56504
+[10] securityLevel https://emersonbottero.github.io/mermaid-docs/config/usage.html

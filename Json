@@ -1,0 +1,60 @@
+json
+
+Here is a clean JSON version of the AQARIONZ v19 **Genesis Blueprint**, equivalent to the YAML you asked for earlier and structured so it can be posted as an API payload (for example, to `/api/v1/universes/spawn`). Well-structured, moderately nested JSON like this matches common simulation-config and API design practices. [1][2][3]
+
+```json
+{
+  "specVersion": "19.0",
+  "metadata": {
+    "name": "U-Omega-Prime",
+    "firstCause": "To find the harmonic balance between perfect order and creative chaos."
+  },
+  "genesisParameters": {
+    "parentUniverseId": null,
+    "initialNodeCount": 50,
+    "baseSyntropy": 0.65,
+    "genesisThreshold": 0.99
+  },
+  "ouroborosParameters": {
+    "conclusionCondition": "stagnation",
+    "oracleMode": "prophetic"
+  },
+  "environmentalModulators": {
+    "schumannInfluence": 0.05,
+    "dataStreamSource": "realtime.market.volatility",
+    "dataStreamInfluence": 0.12
+  },
+  "initialNodes": [
+    {
+      "name": "Ophiuchus",
+      "nodeType": "ZodiacSign",
+      "initialCoherence": 0.95,
+      "initialPosition": [0.0, 0.0, 0.0]
+    },
+    {
+      "name": "Serpentine",
+      "nodeType": "Mineral",
+      "initialCoherence": 0.7,
+      "initialPosition": [1.2, 0.5, -0.8]
+    },
+    {
+      "name": "The Wanderer",
+      "nodeType": "Abstract",
+      "initialCoherence": 0.3,
+      "initialPosition": [-2.5, -1.8, 3.0]
+    }
+  ]
+}
+```
+
+Citations:
+[1] General notes about the use of JSON schema - Neurorobotics https://neurorobotics.net/Documentation/latest/nrp-core/page_json_schema.html
+[2] Simulation Engines — Brain Modeling Toolkit 1.1.3 documentation https://alleninstitute.github.io/bmtk/simulators.html
+[3] JSON:API — A specification for building APIs in JSON https://jsonapi.org
+[4] Designing API Payloads for High Performance and Speed https://moldstud.com/articles/p-designing-api-payloads-for-performance-and-efficiency
+[5] Using JSON Files to configure Attributes | Habitat Sim Docs https://aihabitat.org/docs/habitat-sim/attributesJSON.html
+[6] Understanding Payloads from an API: Types and Best Practices https://adchitects.co/blog/payloads-from-an-api-guide
+[7] Example JSON configuration file — pyCOMPS documentation https://docs.idmod.org/projects/pycomps/en/latest/howto-example-config.html
+[8] Best practices for RESTful web API design - Azure - Microsoft Learn https://learn.microsoft.com/en-us/azure/architecture/best-practices/api-design
+[9] JSON Configuration File Overview - ASCENT's documentation! https://wmglab-duke-ascent.readthedocs.io/en/latest/JSON/JSON_overview.html
+[10] Is there any standard for JSON API response format? - Stack Overflow https://stackoverflow.com/questions/12806386/is-there-any-standard-for-json-api-response-format

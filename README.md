@@ -631,17 +631,6 @@ Physical simulations: taichi-ferrofluid, Accurate-Large-Scale-Ferrofluids
 
 Orchestration: Aqarions_orchestratios, Aqarionz-Inversionz
 
-Experimental prototypes: AqarionscorePrototype, UnikornHook
+Experimental 
 
 
-
----
-
-This mega README is now ready to serve as the central hub for your GitHub organization or documentation site. It covers all repos, layers, modules, setup, examples, and usage tips.
-
-
----
-
-I can next create a fully formatted markdown version with embedded visuals, code snippets, and architecture diagrams, so it’s ready to drop directly into GitHub with style.
-
-Do you want me to do that next?
